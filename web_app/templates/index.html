@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验室安全检测系统 - YOLOv8</title>
+    <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <section class="hero-section">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <span>YOLOv8 + VLM</span>
+                </div>
+                <h1 class="hero-title">实验室安全监测系统</h1>
+                <p class="hero-subtitle">实时目标检测与大模型行为验证，守护实验室安全</p>
+                <div class="hero-actions">
+                    <a id="heroStart" class="btn btn-success btn-lg">
+                        <i class="fas fa-play"></i> 开始实时检测
+                    </a>
+                    <a id="heroUpload" class="btn btn-warning btn-lg">
+                        <i class="fas fa-upload"></i> 上传检测
+                    </a>
+                    <a href="#info" class="btn btn-outline-light btn-lg">
+                        <i class="fas fa-book"></i> 系统介绍
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-flask"></i> 实验室安全检测系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#analysis">场景分析</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#live">实时检测</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#upload">上传检测</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#info">系统信息</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#settingsModal">设置</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- 系统状态栏 -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="alert alert-info d-flex align-items-start" id="statusAlert">
+                    <div class="me-2"><i class="fas fa-info-circle fa-lg"></i></div>
+                    <div class="flex-grow-1">
+                        <div id="statusMessage">系统就绪 | 模型: lab_safety_detection</div>
+                        <div id="statusAlerts" class="mt-2"></div>
+                    </div>
+                    <div>
+                        <button id="toggleAlerts" class="btn btn-sm btn-danger">报警: 开</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 场景分析与要求设定 -->
+        <div class="card mb-4" id="analysis">
+            <div class="card-header bg-info text-white">
+                <i class="fas fa-brain"></i> 场景分析与安全要求设定
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5 id="analysisTitle">1. 场景分析 (VLM)</h5>
+                        <form id="analysisForm">
+                            <div class="mb-3">
+                                <label class="form-label" id="analysisUploadLabel">上传实验室场景图片</label>
+                                <input class="form-control" type="file" id="analysisFile" accept="image/*" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" id="analysisDescLabel">描述 (可选)</label>
+                                <textarea class="form-control" id="analysisDesc" rows="2" placeholder="例如：这是一个化学实验室，正在进行酸碱滴定实验..."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-info text-white" id="analysisSubmit">
+                                <i class="fas fa-magic"></i> AI 自动识别
+                            </button>
+                        </form>
+                    </div>
+                    <div class="col-md-6">
+                        <h5 id="requirementsTitle">2. 安全检测要求</h5>
+                        <p class="text-muted small" id="requirementsHint">控制是否检测对应的违规项</p>
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <form id="requirementsForm">
+                                    <div class="row mb-2">
+                                        <div class="col-6">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input req-check" type="checkbox" id="req_drinking" data-idx="0" checked>
+                                                <label class="form-check-label" for="req_drinking" id="label_req_drinking">禁止饮水 (No Drinking)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input req-check" type="checkbox" id="req_eating" data-idx="1" checked>
+                                                <label class="form-check-label" for="req_eating" id="label_req_eating">禁止进食 (No Eating)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input req-check" type="checkbox" id="req_gloves" data-idx="2" checked>
+                                                <label class="form-check-label" for="req_gloves" id="label_req_gloves">必须戴手套 (Gloves)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input req-check" type="checkbox" id="req_goggles" data-idx="3" checked>
+                                                <label class="form-check-label" for="req_goggles" id="label_req_goggles">必须戴护目镜 (Goggles)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input req-check" type="checkbox" id="req_mask" data-idx="4" checked>
+                                                <label class="form-check-label" for="req_mask" id="label_req_mask">必须戴口罩 (Mask)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input req-check" type="checkbox" id="req_coat" data-idx="5" checked>
+                                                <label class="form-check-label" for="req_coat" id="label_req_coat">必须穿实验服 (Lab Coat)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input req-check" type="checkbox" id="req_head" data-idx="6" checked>
+                                                <label class="form-check-label" for="req_head" id="label_req_head">必须戴头套 (Head Mask)</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <button type="button" id="updateRequirements" class="btn btn-sm btn-primary float-end">手动更新要求</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <div id="analysisResult" class="mt-3 alert alert-success" style="display:none;">
+                            <strong>AI 分析结果:</strong> <span id="analysisText"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 实时摄像头检测 -->
+        <div class="card mb-4" id="live">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-video"></i> 实时摄像头检测
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="video-container">
+                               <img id="videoFeed" src="" class="img-fluid border" 
+                                   style="display:none; max-height: 480px;">
+                            <div id="noVideo" class="text-center py-5">
+                                <i class="fas fa-video-slash fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">摄像头未启动</p>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button id="startCamera" class="btn btn-success">
+                                <i class="fas fa-play"></i> 启动摄像头
+                            </button>
+                            <button id="stopCamera" class="btn btn-danger" disabled>
+                                <i class="fas fa-stop"></i> 停止摄像头
+                            </button>
+                            <button id="captureFrame" class="btn btn-warning" disabled>
+                                <i class="fas fa-camera"></i> 截图
+                            </button>
+                        </div>
+                        
+                        <!-- VLM Verification Result -->
+                        <div id="vlmVerificationCard" class="card mt-3 border-danger" style="display:none;">
+                            <div class="card-header bg-danger text-white">
+                                <i class="fas fa-robot"></i> VLM 行为验证 (Drinking/Eating)
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <img id="vlmImage" class="img-fluid border" style="max-height: 150px;">
+                                        <div class="small text-muted mt-1" id="vlmTime"></div>
+                                    </div>
+                                    <div class="col-md-8">
+                                        <h6 class="text-danger fw-bold" id="vlmClass"></h6>
+                                        <div class="p-2 bg-light border rounded">
+                                            <strong>大模型判断:</strong>
+                                            <p id="vlmResponse" class="mb-0 mt-1" style="white-space: pre-wrap;"></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stats-card">
+                            <h5 id="statsTitle"><i class="fas fa-chart-bar"></i> 实时统计</h5>
+                            <div id="detectionStats">
+                                <p class="text-muted" id="statsWaiting">等待数据...</p>
+                            </div>
+                        </div>
+                        <div class="mt-3 d-flex justify-content-between">
+                            <div class="text-end text-white-50 small">点击导航栏“设置”管理检测与报警</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 上传检测 -->
+        <div class="row mb-4" id="upload">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header bg-success text-white">
+                        <i class="fas fa-image"></i> 图像上传检测
+                    </div>
+                    <div class="card-body">
+                        <form id="imageUploadForm" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                    <label class="form-label" id="labelImageFile">选择图像文件</label>
+                                        <input class="form-control" type="file" id="imageFile" accept="image/*" required style="display:none;">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <button type="button" class="btn btn-outline-secondary" id="imageSelectBtn">
+                                                <i class="fas fa-folder-open"></i> 选择文件
+                                            </button>
+                                            <span class="text-muted small" id="selectedImageName">未选择文件</span>
+                                        </div>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100" id="imageUploadButton">
+                                <i class="fas fa-upload"></i> 上传并检测
+                            </button>
+                        </form>
+                        <div id="imageResult" class="mt-3" style="display:none;">
+                               <img id="processedImage" class="img-fluid" 
+                                   style="max-height: 300px;">
+                            <div id="imageStats" class="mt-2"></div>
+                            <a id="downloadImage" class="btn btn-sm btn-outline-primary mt-2">
+                                <i class="fas fa-download"></i> 下载结果
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header bg-warning text-dark">
+                        <i class="fas fa-film"></i> 视频上传检测
+                    </div>
+                    <div class="card-body">
+                        <form id="videoUploadForm" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                    <label class="form-label" id="labelVideoFile">选择视频文件</label>
+                                        <input class="form-control" type="file" id="videoFile" accept="video/*" required style="display:none;">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <button type="button" class="btn btn-outline-secondary" id="videoSelectBtn">
+                                                <i class="fas fa-folder-open"></i> 选择文件
+                                            </button>
+                                            <span class="text-muted small" id="selectedVideoName">未选择文件</span>
+                                        </div>
+                            </div>
+                            <button type="submit" class="btn btn-warning w-100" id="videoUploadButton">
+                                <i class="fas fa-upload"></i> 上传并检测
+                            </button>
+                        </form>
+                        <div id="videoResult" class="mt-3" style="display:none;">
+                            <div class="d-flex justify-content-between mb-2">
+                                <div>
+                                    <button id="stopVideoStream" class="btn btn-sm btn-outline-secondary me-2">停止播放</button>
+                                    <a id="downloadVideoFrame" class="btn btn-sm btn-outline-warning" style="display:none;">下载检测日志</a>
+                                </div>
+                                <div id="videoWarningPlaceholder"></div>
+                            </div>
+                            <img id="processedVideoFrame" class="img-fluid" style="max-height: 480px; width:100%;">
+                            <div id="videoStats" class="mt-2"></div>
+                            <a id="downloadVideoFrameImage" class="btn btn-sm btn-outline-warning mt-2" style="display:none;">
+                                <i class="fas fa-download"></i> 下载当前帧
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 系统信息 -->
+        <div class="card" id="info">
+            <div class="card-header bg-secondary text-white">
+                <i class="fas fa-info-circle"></i> 系统信息
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5 id="modelInfoTitle">模型信息</h5>
+                        <div id="modelInfo">
+                            <p id="modelInfoIntro">本系统基于 YOLOv8 模型构建，用于实验室现场安全行为检测与防护装备识别，支持实时摄像头流、单张图像及视频文件的检测。请将模型权重放置于 models/lab_safety_detection6/weights/ 下的 best.pt。</p>
+                            <p class="mt-2">
+                                <strong id="labelModelName">模型名称:</strong> <span id="modelName">lab_safety_detection6</span>
+                                &nbsp; <strong id="labelNumClasses">类别数量:</strong> <span id="numClasses">12</span>
+                                &nbsp; <strong id="labelInputSize">输入尺寸:</strong> <span id="inputSize">640</span>px
+                            </p>
+                            <p class="mb-1"><strong id="labelClassList">检测类别:</strong></p>
+                            <ul id="classList" class="list-group"></ul>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h5 id="usageTitle">使用说明</h5>
+                        <ul id="usageList">
+                            <li>实时检测：启动摄像头进行实时安全检测</li>
+                            <li>图像检测：上传实验室图像进行安全分析</li>
+                            <li>视频检测：上传视频文件进行帧分析</li>
+                            <li>支持检测实验室安全相关物品和违规行为</li>
+                        </ul>
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong id="demoWarningStrong">注意：</strong> <span id="demoWarningText">本系统为演示版本，仅供参考，部署到生产环境前请校验模型与检测阈值，并做好隐私与安全评估。</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- footer removed as requested -->
+
+    <!-- 模态框 -->
+    <div class="modal fade" id="resultModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">检测结果</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <img id="modalImage" class="img-fluid">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 警告由顶部状态栏展示（不使用弹窗） -->
+
+    <!-- 设置模态框 -->
+    <div class="modal fade" id="settingsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">检测与报警设置</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="settingsLanguage" class="form-label">语言</label>
+                        <select id="settingsLanguage" class="form-select">
+                            <option value="zh">中文</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="settingsConf" class="form-label">置信度阈值: <span id="settingsConfValue">0.3</span></label>
+                        <input type="range" class="form-range" id="settingsConf" min="0.1" max="0.9" step="0.05" value="0.3">
+                    </div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="settingsShowLabels" checked>
+                        <label class="form-check-label" for="settingsShowLabels">显示标签</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="settingsAlerts" checked>
+                        <label class="form-check-label" for="settingsAlerts">启用报警</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" id="saveSettings" class="btn btn-primary">保存设置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 历史记录 -->
+    <div class="container mt-4">
+        <div class="card mb-4" id="historyCard">
+            <div class="card-header bg-light">
+                <i class="fas fa-history"></i> 检测历史记录
+                <button id="refreshHistory" class="btn btn-sm btn-outline-secondary float-end">刷新</button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm" id="historyTable">
+                        <thead>
+                            <tr><th>来源</th><th>类别</th><th>帧</th><th>时间</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/jquery-3.6.0.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
